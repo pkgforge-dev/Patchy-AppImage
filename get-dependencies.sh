@@ -7,16 +7,12 @@ ARCH=$(uname -m)
 echo "Installing package dependencies..."
 echo "---------------------------------------------------------------"
 pacman -Syu --noconfirm \
-	base-devel       \
 	cmake            \
 	gettext          \
-	git              \
 	glib2            \
 	json-glib        \
 	meson            \
 	ninja            \
-	python           \
-	qt6-base         \
 	qt6-declarative  \
 	qt6-imageformats \
 	qt6-svg          \
@@ -31,46 +27,31 @@ get-debloated-pkgs --add-common --prefer-nano
 # Patchy ships no distro package, so it is built from source here, along with the three
 # things it loads at run time and never links: its own GEGL bundle, ONNX Runtime and the
 # selection models (upstream builds all of them for its Flatpak and its own AppImage).
+# Nothing is versioned here: the pins are read from the files upstream keeps them in, so a
+# bump there is a bump here and a changed artifact still fails its checksum.
 PATCHY_SRC="$HOME"/patchy-src
 DEPS="$HOME"/patchy-deps
-BABL_VERSION=0.1.128
-GEGL_VERSION=0.4.72
-ORT_VERSION=1.30.0
-
-case "$ARCH" in
-	x86_64)
-		GEGL_PLATFORM=linux-x64
-		ORT_PLATFORM=linux-x64
-		ORT_SHA256=a5ed5a3cac51fbb2e90da632ae43d19212faaa20e76484e62bcb7c23ddb3b3fd
-		;;
-	aarch64)
-		GEGL_PLATFORM=linux-aarch64
-		ORT_PLATFORM=linux-aarch64
-		ORT_SHA256=e16a27a8ed330bbc698df7330b0cf56e722f354e3bcc92118682c74ef3c3e3da
-		;;
-	*)
-		echo "Unsupported architecture: $ARCH" >&2
-		exit 1
-		;;
-esac
-
 mkdir -p "$DEPS"
 
 echo "Fetching the Patchy source..."
 echo "---------------------------------------------------------------"
-if [ "${DEVEL_RELEASE-}" = 1 ]; then
-	git clone --depth 1 https://github.com/SethRobinson/Patchy.git "$PATCHY_SRC"
-	VERSION=$(date -u +%Y%m%d)
-else
-	TAG=$(git ls-remote --tags --refs --sort=-v:refname \
-		https://github.com/SethRobinson/Patchy.git 'v*' | head -n 1 | sed 's|.*refs/tags/||')
-	git clone --depth 1 --branch "$TAG" https://github.com/SethRobinson/Patchy.git "$PATCHY_SRC"
-	VERSION=${TAG#v}
-fi
+TAG=$(git ls-remote --tags --refs --sort=-v:refname \
+	https://github.com/SethRobinson/Patchy.git 'v*' | head -n 1 | sed 's|.*refs/tags/||')
+git clone --depth 1 --branch "$TAG" https://github.com/SethRobinson/Patchy.git "$PATCHY_SRC"
+VERSION=${TAG#v}
 echo "$VERSION" > ~/version
 
-echo "Fetching ONNX Runtime $ORT_VERSION and the selection models..."
+echo "Fetching ONNX Runtime and the selection models..."
 echo "---------------------------------------------------------------"
+# The version, the platform package and its checksum are scripts/setup-ai-deps.sh's own.
+SETUP_AI="$PATCHY_SRC"/scripts/setup-ai-deps.sh
+ORT_VERSION=$(sed -n 's/^ORT_VERSION="\([^"]*\)".*/\1/p' "$SETUP_AI")
+ORT_PINS=$(grep "^  Linux-$ARCH)" "$SETUP_AI" || :)
+ORT_PLATFORM=$(echo "$ORT_PINS" | sed -n 's/.*ORT_PLATFORM="\([^"]*\)".*/\1/p')
+ORT_SHA256=$(echo "$ORT_PINS" | sed -n 's/.*ORT_SHA256="\([0-9a-f]*\)".*/\1/p')
+[ -n "$ORT_VERSION" ] && [ -n "$ORT_SHA256" ] ||
+	{ echo "setup-ai-deps.sh has no ONNX Runtime pins for Linux-$ARCH" >&2; exit 1; }
+
 # The library is only ever dlopen'd, by file name, so it has to sit in /usr/lib: nothing
 # links it, which means quick-sharun cannot find it on its own.
 curl -sSfL --retry 3 -o "$DEPS"/onnxruntime.tgz \
@@ -94,29 +75,46 @@ done <<-EOF
 	sam_mask_decoder_multi_int8.onnx|https://github.com/SethRobinson/Patchy/releases/download/ai-models-1/sam_mask_decoder_multi_int8.onnx|aa1410bec8f050b6017fba29ca07f16317029a8f74a98e5998aeed46680c10a6
 EOF
 
-echo "Building Patchy's own GEGL $GEGL_VERSION bundle..."
+echo "Building Patchy's own GEGL bundle..."
 echo "---------------------------------------------------------------"
 # Built with upstream's scripts/dev/gegl/ helpers, so the bundle matches the one its
 # Windows, macOS and Flatpak builds ship: babl and GEGL from the gimp.org tarballs, GEGL
 # without the operations its legal review drops, staged where bundled_gegl_library() looks
-# for it (<prefix>/lib/patchy/gegl).
+# for it (<prefix>/lib/patchy/gegl). Tarballs, checksums and URLs are sources.lock's, the
+# same pins the release that publishes their source uses.
 PATCHY_GEGL_SCRIPTS="$PATCHY_SRC"/scripts/dev/gegl
 . "$PATCHY_GEGL_SCRIPTS"/common.sh
+
+lock_tarball() {  # <name pattern>
+	awk -v p="$1" '!/^#/ && $1 ~ p { print $1; exit }' "$PATCHY_GEGL_SCRIPTS"/sources.lock
+}
+lock_field() {  # <tarball> <field>
+	awk -v f="$1" -v c="$2" '!/^#/ && $1 == f { print $c; exit }' "$PATCHY_GEGL_SCRIPTS"/sources.lock
+}
+
+GEGL_TARBALL=$(lock_tarball '^gegl-0[.]4[.][0-9]+[.]tar[.]xz$')
+BABL_TARBALL=$(lock_tarball '^babl-0[.]1[.][0-9]+[.]tar[.]xz$')
+GEGL_VERSION=$(echo "$GEGL_TARBALL" | sed 's|^gegl-||; s|\.tar\.xz$||')
+BABL_VERSION=$(echo "$BABL_TARBALL" | sed 's|^babl-||; s|\.tar\.xz$||')
+GEGL_URL=$(lock_field "$GEGL_TARBALL" 3)
+GEGL_SHA256=$(lock_field "$GEGL_TARBALL" 2)
+BABL_URL=$(lock_field "$BABL_TARBALL" 3)
+BABL_SHA256=$(lock_field "$BABL_TARBALL" 2)
+
 GEGL_WORK=$(mktemp -d)
 cd "$GEGL_WORK"
 PREFIX="$GEGL_WORK"/install
-STAGE="$DEPS"/gegl/"$GEGL_VERSION"/"$GEGL_PLATFORM"
+STAGE="$DEPS"/gegl/"$GEGL_VERSION"/"$ARCH"
 
-fetch() {
-	curl -sSfL --retry 3 -o "$(basename "$1")" "$1"
-	echo "$2  $(basename "$1")" | sha256sum -c -
-	patchy_gegl_locked "$(basename "$1")" "$2"
-	tar xf "$(basename "$1")"
+fetch() {  # <url> <sha256>
+	file=$(basename "$1")
+	curl -sSfL --retry 3 -o "$file" "$1"
+	echo "$2  $file" | sha256sum -c -
+	patchy_gegl_locked "$file" "$2" || { echo "$file is not in sources.lock" >&2; exit 1; }
+	tar xf "$file"
 }
-fetch "https://download.gimp.org/pub/babl/0.1/babl-$BABL_VERSION.tar.xz" \
-	e676507b421d414d49db8627415dc1eadbd787536baa7d6fe94a1f1971cbe73e
-fetch "https://download.gimp.org/pub/gegl/0.4/gegl-$GEGL_VERSION.tar.xz" \
-	ccbb8cdd1db56ecd4ece5dbabae0118ab2c46b5b3439c94f3cec467798ce956d
+fetch "$BABL_URL" "$BABL_SHA256"
+fetch "$GEGL_URL" "$GEGL_SHA256"
 patchy_gegl_drop_operations "gegl-$GEGL_VERSION"
 
 meson setup build-babl "babl-$BABL_VERSION" --prefix="$PREFIX" --libdir=lib \
@@ -143,7 +141,14 @@ patchy_gegl_catalogs "$PATCHY_SRC"
 patchy_gegl_license "gegl-$GEGL_VERSION"/COPYING.LESSER gegl-COPYING.LESSER.txt
 patchy_gegl_license "gegl-$GEGL_VERSION"/COPYING gegl-COPYING.txt
 patchy_gegl_license "babl-$BABL_VERSION"/COPYING babl-COPYING.txt
-patchy_gegl_sources_note > "$STAGE"/licenses/SOURCES.txt
+{
+	echo "Patchy's GEGL bundle ($ARCH), built $(date -u +%Y-%m-%d) by get-dependencies.sh"
+	echo "GEGL $GEGL_VERSION $GEGL_URL sha256 $GEGL_SHA256"
+	echo "babl $BABL_VERSION $BABL_URL sha256 $BABL_SHA256"
+	echo "GLib and json-glib are the system's own and are not in this folder."
+	patchy_gegl_sources_note
+} > "$STAGE"/licenses/SOURCES.txt
+patchy_gegl_check_sources "$STAGE"/licenses/SOURCES.txt
 strip --strip-unneeded "$STAGE"/lib/*.so.0 "$STAGE"/lib/gegl-0.4/*.so \
 	"$STAGE"/lib/babl-0.1/*.so
 cd "$HOME"

@@ -18,18 +18,6 @@
 
 ---
 
-[Patchy](https://github.com/SethRobinson/Patchy) is a free, open-source image editor focused on accurate PSD compatibility: text, vectors, masks, layer styles and Smart Objects stay editable. It opens Affinity, Krita, GIMP, OpenRaster, Paint.NET, PDF, camera raw and the usual flat formats, runs classic 8BF plug-ins, and can be extended with JavaScript.
-
-This AppImage is built from the upstream release tag, against Arch Linux's Qt 6, and it includes everything the upstream Linux builds ship:
-
-* **GEGL filters**, from Patchy's own GEGL build against babl, with the operation set its legal review allows.
-* **Object Selection** and the watermark tools, through ONNX Runtime and the pinned models. The larger "high quality" selection model is still downloaded on first use, exactly as in the Flatpak.
-* **PDF import**, through Qt PDF (a Qt without that module still exports PDF, it just cannot open one).
-
-Some things are deliberately left to the host, as in the upstream builds: HEIC/HEIF opens through your distribution's `libheif` (with an HEVC decoder, e.g. `libheif-plugin-libde265` on Ubuntu 24.04+).
-
-The in-app update check is compiled out, since this AppImage updates itself instead; it will never replace itself with a different build.
-
 AppImage made using [quick-sharun](https://github.com/pkgforge-dev/Anylinux-AppImages/blob/main/useful-tools/quick-sharun.sh), which makes it extremely easy to turn any binary into a portable package reliably without using containers or similar tricks. 
 
 **This AppImage bundles everything and it should work on any Linux distro, including old and musl-based ones.**
