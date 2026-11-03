@@ -21,11 +21,6 @@ quick-sharun                  \
 	/usr/lib/libonnxruntime.so* \
 	/usr/lib/patchy/gegl
 
-# GEGL's catalogs are data, so deploying that folder only brings its libraries; the helper
-# reads the catalogs from beside them (PATCHY_GEGL_LOCALE_DIR).
-mkdir -p ./AppDir/lib/patchy/gegl
-cp -r /usr/lib/patchy/gegl/share ./AppDir/lib/patchy/gegl/
-
 # Turn AppDir into AppImage
 quick-sharun --make-appimage
 
@@ -44,4 +39,3 @@ PATCHY_SETTINGS_DIR="$SMOKE"/settings PATCHY_NO_SOUND=1 \
 test "$(tail -n 1 "$SMOKE"/smoke.txt)" = "[done]"
 PATCHY_SETTINGS_DIR="$SMOKE"/settings PATCHY_NO_SOUND=1 \
 	./dist/*.AppImage --mcp-connector --check
-rm -rf "$SMOKE"
