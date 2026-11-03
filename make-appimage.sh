@@ -3,18 +3,28 @@
 set -eu
 
 ARCH=$(uname -m)
-VERSION=$(pacman -Q PACKAGENAME | awk '{print $2; exit}') # example command to get version of application here
-export ARCH VERSION
+export ARCH
 export OUTPATH=./dist
 export ADD_HOOKS="self-updater.hook"
 export UPINFO="gh-releases-zsync|${GITHUB_REPOSITORY%/*}|${GITHUB_REPOSITORY#*/}|latest|*$ARCH.AppImage.zsync"
-export ICON=PATH_OR_URL_TO_ICON
-export DESKTOP=PATH_OR_URL_TO_DESKTOP_ENTRY
+export ICON=/usr/share/icons/hicolor/256x256/apps/com.rtsoft.patchy.png
+export DESKTOP=/usr/share/applications/com.rtsoft.patchy.desktop
+
+# Patchy links QtQml for its JavaScript engine only and ships no QML at all
+# (CMakeLists.txt, QT_QML_MODULE_NO_IMPORT_SCAN), so the QML module tree is not wanted.
+export DEPLOY_QML=0
 
 # Deploy dependencies
-quick-sharun /PATH/TO/BINARY_AND_LIBRARIES_HERE
+quick-sharun                  \
+	/usr/bin/patchy             \
+	/usr/bin/patchy-gegl-host   \
+	/usr/lib/libonnxruntime.so* \
+	/usr/lib/patchy/gegl
 
-# Additional changes can be done in between here
+# GEGL's catalogs are data, so deploying that folder only brings its libraries; the helper
+# reads the catalogs from beside them (PATCHY_GEGL_LOCALE_DIR).
+mkdir -p ./AppDir/lib/patchy/gegl
+cp -r /usr/lib/patchy/gegl/share ./AppDir/lib/patchy/gegl/
 
 # Turn AppDir into AppImage
 quick-sharun --make-appimage
@@ -22,3 +32,16 @@ quick-sharun --make-appimage
 # Test the app for 12 seconds, if the test fails due to the app
 # having issues running in the CI use --simple-test instead
 quick-sharun --test ./dist/*.AppImage
+
+# And the checks a GUI launch cannot make: GEGL, ONNX Runtime and the models are only
+# loaded when a filter or a selection actually runs, so the AppImage runs them itself.
+export APPIMAGE_EXTRACT_AND_RUN=1
+SMOKE=$(mktemp -d)
+mkdir -p "$SMOKE"/settings
+PATCHY_SETTINGS_DIR="$SMOKE"/settings PATCHY_NO_SOUND=1 \
+	./dist/*.AppImage --headless --run-script "$HOME"/patchy-deps/gegl-smoke.js \
+	--script-output "$SMOKE"/smoke.txt
+test "$(tail -n 1 "$SMOKE"/smoke.txt)" = "[done]"
+PATCHY_SETTINGS_DIR="$SMOKE"/settings PATCHY_NO_SOUND=1 \
+	./dist/*.AppImage --mcp-connector --check
+rm -rf "$SMOKE"
