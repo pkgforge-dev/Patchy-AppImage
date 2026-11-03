@@ -11,6 +11,7 @@ pacman -Syu --noconfirm \
 	gettext          \
 	glib2            \
 	json-glib        \
+	libheif          \
 	meson            \
 	ninja            \
 	qt6-declarative  \

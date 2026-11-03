@@ -15,10 +15,12 @@ export DESKTOP=/usr/share/applications/com.rtsoft.patchy.desktop
 export DEPLOY_QML=0
 
 # Deploy dependencies
+# libheif is only ever dlopen'd by name (HEIC), so it has to be passed explicitly.
 quick-sharun                  \
 	/usr/bin/patchy             \
 	/usr/bin/patchy-gegl-host   \
 	/usr/lib/libonnxruntime.so* \
+	/usr/lib/libheif.so*        \
 	/usr/lib/patchy/gegl
 
 # Turn AppDir into AppImage
