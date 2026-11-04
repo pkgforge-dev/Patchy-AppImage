@@ -3,8 +3,8 @@
 set -eu
 
 ARCH=$(uname -m)
-SRC="$HOME"/patchy-src
-DEPS="$HOME"/patchy-deps
+SRC=/tmp/patchy-src
+DEPS=/tmp/patchy-deps
 
 echo "Installing package dependencies..."
 echo "---------------------------------------------------------------"
@@ -104,13 +104,10 @@ install -Dm755 onnxruntime/lib/libonnxruntime.so."$ORT_VERSION" /usr/lib/
 ln -sf libonnxruntime.so."$ORT_VERSION" /usr/lib/libonnxruntime.so.1
 
 mkdir -p ai-models
-while IFS='|' read -r model url sha256; do
-	curl -sSfL --retry 3 -o ai-models/"$model" "$url"
-	echo "$sha256  ai-models/$model" | sha256sum -c -
-done <<-EOF
-	mobile_sam_image_encoder_int8.onnx|https://github.com/SethRobinson/Patchy/releases/download/ai-models-1/mobile_sam_image_encoder_int8.onnx|6af3f249f7a5a6a8a3ef988b6814015e8c3a300977c135d1f9572ed2f2930cd7
-	sam_mask_decoder_multi_int8.onnx|https://github.com/SethRobinson/Patchy/releases/download/ai-models-1/sam_mask_decoder_multi_int8.onnx|aa1410bec8f050b6017fba29ca07f16317029a8f74a98e5998aeed46680c10a6
-EOF
+for model in mobile_sam_image_encoder_int8.onnx sam_mask_decoder_multi_int8.onnx; do
+	curl -sSfL --retry 3 -o ai-models/"$model" \
+		"https://github.com/SethRobinson/Patchy/releases/download/ai-models-1/$model"
+done
 
 echo "Building Patchy..."
 echo "---------------------------------------------------------------"
