@@ -33,7 +33,7 @@ git clone --depth 1 --branch "$TAG" https://github.com/SethRobinson/Patchy.git "
 echo "$TAG" > ~/version
 mkdir -p "$DEPS" && (
 	cd "$DEPS"
-	
+
 	echo "Building Patchy's own GEGL..."
 	echo "---------------------------------------------------------------"
 	# Upstream's own helpers and pins, so the bundle is the one its Flatpak and AppImage ship
@@ -52,11 +52,12 @@ mkdir -p "$DEPS" && (
 	tar xf "$GEGL"
 	patchy_gegl_drop_operations "${GEGL%.tar.xz}"
 
-	set -- --prefix="$PREFIX" --libdir=lib --buildtype=release -Dauto_features=disabled -Ddocs=false 
-	meson setup build-babl "${BABL%.tar.xz}" "$@" -Denable-gir=false -Denable-vapi=false
-	ninja -C build-babl install
-	PKG_CONFIG_PATH="$PREFIX"/lib/pkgconfig meson setup build-gegl "${GEGL%.tar.xz}" "$@" -Dworkshop=false -Dintrospection=false
-	ninja -C build-gegl install
+	set -- --prefix="$PREFIX" --libdir=lib --buildtype=release -Dauto_features=disabled
+	meson setup ./build-babl "${BABL%.tar.xz}" "$@" -Dwith-docs=false -Denable-gir=false -Denable-vapi=false
+	ninja -C ./build-babl install
+	PKG_CONFIG_PATH="$PREFIX"/lib/pkgconfig meson setup ./build-gegl "${GEGL%.tar.xz}" \
+		"$@" -Ddocs=false -Dworkshop=false -Dintrospection=false
+	ninja -C ./build-gegl install
 	set --
 
 	mkdir -p "$STAGE"/lib/gegl-0.4 "$STAGE"/lib/babl-0.1 "$STAGE"/licenses
@@ -65,7 +66,7 @@ mkdir -p "$DEPS" && (
 		cp "$PREFIX"/lib/gegl-0.4/"$module"*.so "$STAGE"/lib/gegl-0.4/
 	done
 	cp "$PREFIX"/lib/babl-0.1/*.so "$STAGE"/lib/babl-0.1/
-	rm -f "$STAGE"/lib/babl-0.1/cairo.so
+	rm -f "$STAGE"/lib/babl-0.1/*cairo.so
 	patchy_gegl_catalogs "$SRC"
 	patchy_gegl_license "${GEGL%.tar.xz}"/COPYING.LESSER gegl-COPYING.LESSER.txt
 	patchy_gegl_license "${GEGL%.tar.xz}"/COPYING gegl-COPYING.txt
@@ -79,20 +80,20 @@ mkdir -p "$DEPS" && (
 	ORT_PLATFORM=$(sed -n "s/^  Linux-$ARCH).*ORT_PLATFORM=\"\([^\"]*\)\".*/\1/p" "$SETUP_AI")
 
 	wget --retry-connrefused --tries=30 "https://github.com/microsoft/onnxruntime/releases/download/v$ORT_VERSION/onnxruntime-$ORT_PLATFORM-$ORT_VERSION.tgz" -O ./onnxruntime.tgz
-	mkdir -p onnxruntime
-	tar -xf onnxruntime.tgz -C onnxruntime --strip-components=1
+	mkdir -p ./onnxruntime
+	tar -xf ./onnxruntime.tgz -C ./onnxruntime --strip-components=1
 	# Only ever dlopen'd by name, so it has to live in /usr/lib
 	cp -v ./onnxruntime/lib/libonnxruntime.so."$ORT_VERSION" /usr/lib/
 	ln -sf libonnxruntime.so."$ORT_VERSION" /usr/lib/libonnxruntime.so.1
 
-	mkdir -p ai-models
+	mkdir -p ./ai-models
 	for model in mobile_sam_image_encoder_int8.onnx sam_mask_decoder_multi_int8.onnx; do
-		wget --retry-connrefused --tries=30 "https://github.com/SethRobinson/Patchy/releases/download/ai-models-1/$model" -O ai-models/"$model"
+		wget --retry-connrefused --tries=30 "https://github.com/SethRobinson/Patchy/releases/download/ai-models-1/$model" -O ./ai-models/"$model"
 	done
 
 	echo "Building Patchy..."
 	echo "---------------------------------------------------------------"
-	cmake -S "$SRC" -B build -G Ninja \
+	cmake -S "$SRC" -B ./build -G Ninja \
 		-DCMAKE_BUILD_TYPE=Release                   \
 		-DCMAKE_INSTALL_PREFIX=/usr                  \
 		-DPATCHY_BUILD_TESTS=OFF                     \
@@ -103,6 +104,6 @@ mkdir -p "$DEPS" && (
 		-DPATCHY_ONNXRUNTIME_DIR="$DEPS"/onnxruntime \
 		-DPATCHY_AI_MODELS_DIR="$DEPS"/ai-models     \
 		-DPATCHY_GEGL_BUNDLE_DIR="$STAGE"
-	cmake --build build -j"$(nproc)"
-	cmake --install build
+	cmake --build ./build -j"$(nproc)"
+	cmake --install ./build
 )
