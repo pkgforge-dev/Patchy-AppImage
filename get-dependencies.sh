@@ -20,7 +20,7 @@ pacman -Syu --noconfirm \
 	qt6-svg          \
 	qt6-tools        \
 	qt6-translations \
-	qt6-webengine
+	qt6-webengine    # Qt6Pdf, for opening PDF files
 
 echo "Installing debloated packages..."
 echo "---------------------------------------------------------------"
