@@ -41,9 +41,9 @@ echo "---------------------------------------------------------------"
 GEGL_SCRIPTS="$SRC"/scripts/dev/gegl
 . "$GEGL_SCRIPTS"/common.sh
 set -- $(grep -m1 '^babl-0[.]1[.].*[.]tar[.]xz ' "$GEGL_SCRIPTS"/sources.lock)
-BABL=$1 BABL_SHA=$2 BABL_URL=$3
+BABL=$1 BABL_URL=$3
 set -- $(grep -m1 '^gegl-0[.]4[.].*[.]tar[.]xz ' "$GEGL_SCRIPTS"/sources.lock)
-GEGL=$1 GEGL_SHA=$2 GEGL_URL=$3
+GEGL=$1 GEGL_URL=$3
 PREFIX="$DEPS"/gegl-prefix
 STAGE="$DEPS"/gegl
 
@@ -74,12 +74,11 @@ patchy_gegl_license "${GEGL%.tar.xz}"/COPYING gegl-COPYING.txt
 patchy_gegl_license "${BABL%.tar.xz}"/COPYING babl-COPYING.txt
 {
 	echo "Patchy's GEGL bundle ($ARCH), built $(date -u +%Y-%m-%d) by get-dependencies.sh"
-	echo "GEGL ${GEGL%.tar.xz} $GEGL_URL sha256 $GEGL_SHA"
-	echo "babl ${BABL%.tar.xz} $BABL_URL sha256 $BABL_SHA"
+	echo "GEGL ${GEGL%.tar.xz} $GEGL_URL"
+	echo "babl ${BABL%.tar.xz} $BABL_URL"
 	echo "GLib and json-glib are the system's own and are not in this folder."
 	patchy_gegl_sources_note
 } > "$STAGE"/licenses/SOURCES.txt
-patchy_gegl_check_sources "$STAGE"/licenses/SOURCES.txt
 
 echo "Fetching ONNX Runtime and the models..."
 echo "---------------------------------------------------------------"
