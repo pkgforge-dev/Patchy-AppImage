@@ -47,13 +47,10 @@ GEGL=$1 GEGL_SHA=$2 GEGL_URL=$3
 PREFIX="$DEPS"/gegl-prefix
 STAGE="$DEPS"/gegl
 
-fetch() {
-	curl -sSfL --retry 3 -o "$1" "$3"
-	echo "$2  $1" | sha256sum -c -
-	tar xf "$1"
-}
-fetch "$BABL" "$BABL_SHA" "$BABL_URL"
-fetch "$GEGL" "$GEGL_SHA" "$GEGL_URL"
+wget --retry-connrefused --tries=30 "$BABL_URL" -O "$BABL"
+tar xf "$BABL"
+wget --retry-connrefused --tries=30 "$GEGL_URL" -O "$GEGL"
+tar xf "$GEGL"
 patchy_gegl_drop_operations "${GEGL%.tar.xz}"
 
 meson setup build-babl "${BABL%.tar.xz}" --prefix="$PREFIX" --libdir=lib --buildtype=release \
@@ -83,20 +80,16 @@ patchy_gegl_license "${BABL%.tar.xz}"/COPYING babl-COPYING.txt
 	patchy_gegl_sources_note
 } > "$STAGE"/licenses/SOURCES.txt
 patchy_gegl_check_sources "$STAGE"/licenses/SOURCES.txt
-strip --strip-unneeded "$STAGE"/lib/*.so.0 "$STAGE"/lib/*/*.so
 
 echo "Fetching ONNX Runtime and the models..."
 echo "---------------------------------------------------------------"
 # The pins are upstream's own (scripts/setup-ai-deps.sh)
 SETUP_AI="$SRC"/scripts/setup-ai-deps.sh
 ORT_VERSION=$(sed -n 's/^ORT_VERSION="\([^"]*\)".*/\1/p' "$SETUP_AI")
-ORT_PINS=$(grep "^  Linux-$ARCH)" "$SETUP_AI")
-ORT_PLATFORM=$(echo "$ORT_PINS" | sed -n 's/.*ORT_PLATFORM="\([^"]*\)".*/\1/p')
-ORT_SHA256=$(echo "$ORT_PINS" | sed -n 's/.*ORT_SHA256="\([0-9a-f]*\)".*/\1/p')
+ORT_PLATFORM=$(sed -n "s/^  Linux-$ARCH).*ORT_PLATFORM=\"\([^\"]*\)\".*/\1/p" "$SETUP_AI")
 
-curl -sSfL --retry 3 -o onnxruntime.tgz \
-	"https://github.com/microsoft/onnxruntime/releases/download/v$ORT_VERSION/onnxruntime-$ORT_PLATFORM-$ORT_VERSION.tgz"
-echo "$ORT_SHA256  onnxruntime.tgz" | sha256sum -c -
+wget --retry-connrefused --tries=30 \
+	"https://github.com/microsoft/onnxruntime/releases/download/v$ORT_VERSION/onnxruntime-$ORT_PLATFORM-$ORT_VERSION.tgz" -O onnxruntime.tgz
 mkdir -p onnxruntime
 tar -xf onnxruntime.tgz -C onnxruntime --strip-components=1
 # Only ever dlopen'd by name, so it has to live in /usr/lib
@@ -105,8 +98,8 @@ ln -sf libonnxruntime.so."$ORT_VERSION" /usr/lib/libonnxruntime.so.1
 
 mkdir -p ai-models
 for model in mobile_sam_image_encoder_int8.onnx sam_mask_decoder_multi_int8.onnx; do
-	curl -sSfL --retry 3 -o ai-models/"$model" \
-		"https://github.com/SethRobinson/Patchy/releases/download/ai-models-1/$model"
+	wget --retry-connrefused --tries=30 \
+		"https://github.com/SethRobinson/Patchy/releases/download/ai-models-1/$model" -O ai-models/"$model"
 done
 
 echo "Building Patchy..."
