@@ -12,10 +12,8 @@ export DESKTOP=/usr/share/applications/com.rtsoft.patchy.desktop
 export DEPLOY_QML=0 # Patchy links QtQml for its JS engine only and ships no QML
 
 # Deploy dependencies
-# libheif and libonnxruntime are only ever dlopen'd, so they have to be passed by hand
-quick-sharun                  \
-	/usr/bin/patchy             \
-	/usr/bin/patchy-gegl-host   \
+quick-sharun \
+	/usr/bin/patchy*            \
 	/usr/lib/libonnxruntime.so* \
 	/usr/lib/libheif.so*        \
 	/usr/lib/patchy/gegl
